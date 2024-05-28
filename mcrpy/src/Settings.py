@@ -84,6 +84,7 @@ class ReconstructionSettings(CommonSettings, OptimizerSettings, LossSettings, De
     greedy: bool = False
     batch_size: float = 1
     profile: bool = False
+    ftol: float = 0
 
 @dataclass
 class MatchingSettings(CharacterizationSettings, ReconstructionSettings):

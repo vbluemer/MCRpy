@@ -69,6 +69,7 @@ class DMCR:
             batch_size: int = 1,
             symmetry: Symmetry = None,
             initial_microstructure: Microstructure = None,
+            ftol: float = 0,
             **kwargs):
         """Initializer for differentiable microstructure characterisation and reconstruction (DMCR).
         DMCR formulates microstructure reconstruction as a differentiable optimization problem.
@@ -99,6 +100,7 @@ class DMCR:
         """
         if descriptor_types is None:
             descriptor_types = ['Correlations']
+        self.ftol = ftol
         self.descriptor_types = descriptor_types
         self.loss_type = loss_type
         self.optimizer_type = optimizer_type
@@ -259,6 +261,11 @@ class DMCR:
         else:
             img = self.resample_microstructure(previous_solution)
         np.clip(img, 0, 1, out=img)
+        if self.mg_level==0 and self.initial_microstructure is not None:
+            # in last multigrid stage, mask is imposed after resampling to avoid superposition loss
+            arr = np.reshape(self.initial_microstructure.numpy(),(1,)+np.shape(self.initial_microstructure.numpy()))
+            img[arr==0] = 0
+            
         self.ms = ms_class(img.reshape(self.desired_shape_extended), use_multiphase=self.use_multiphase, skip_encoding=True, trainable=self.is_gradient_based, symmetry=self.symmetry)
 
     def resample_microstructure(self, ms: Microstructure, zoom: float = None):
@@ -297,24 +304,44 @@ class DMCR:
         self.assign_desired_descriptor(desired_descriptor)
 
         mg_levels = self._determine_mg_levels(desired_descriptor, desired_shape)
-
+        #mg_levels = np.max([mg_levels,1])
         previous_solution = self.initial_microstructure
+        # mask = previous_solution.numpy()[:,:,0]==0
+        mask_condition = self.initial_microstructure is not None
+        
         for mg_level in reversed(range(mg_levels)):
+            if mask_condition:
+                zf = 1/(2**mg_level)
+                
+                initial_ms_np = self.initial_microstructure.numpy()[...,0]
+                zfs = (zf,) * np.ndim(initial_ms_np)
+                initial_mask = ndimg.zoom(initial_ms_np, zfs, order=1)
+
             self.setup_optimization(desired_shape, mg_levels, previous_solution, mg_level)
+            # Maybe here add:
+            # In last multigrid stage impose mask again after resampling
+            
             last_iter = None
             try:
                 last_iter = self._optimize(last_iter)
+                self.ms.req_iter = last_iter
             except KeyboardInterrupt:
                 logging.info('KeyboardInterrupt, stop opt and continue')
                 last_iter = self.max_iter
                 break
             previous_solution = self.ms
+            if mask_condition:
+                previous_solution_np = previous_solution.numpy()[...,0]
+                previous_solution_np[initial_mask==0]=0
+                previous_solution = Microstructure(previous_solution_np)            
+            
         assert last_iter is not None
-        
+                
         # add last state
         self.reconstruction_callback(
                 last_iter + 1, self.opt.current_loss, self.ms, force_save=True, safe_mode=True)
 
+        
         # convert convergence data to np
         for k, v in self.convergence_data.items():
             self.convergence_data[k] = np.array(v)
@@ -373,6 +400,7 @@ class DMCR:
 
     def _create_optimizer(self):
         opt_kwargs = {
+                    'ftol': self.ftol,
                     'max_iter': self.max_iter,
                     'desired_shape_extended': self.desired_shape_extended,
                     'callback': self.reconstruction_callback,

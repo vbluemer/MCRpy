@@ -27,7 +27,8 @@ class Microstructure:
             ori_repr: type = None,
             symmetry: Symmetry = Cubic,
             skip_encoding: bool = False,
-            trainable: bool = True):
+            trainable: bool = True,
+            tol: float = 0):
         """
         Creates a Microstructure object from a numpy array. The Microstructure
         object internally hold a tf.Variable called x, which contains all information
@@ -47,6 +48,8 @@ class Microstructure:
         know what you are doing! Finally, if you will never need to compute gradients
         with respect to the microstructure, you can set trainable to False.
         """
+        self.req_iter   = None
+        self.tol        = tol
         if -0.0001 < np.min(array) < 0:
             array[array < 0] = 0
         if 1.0 < np.max(array) < 1.0001:

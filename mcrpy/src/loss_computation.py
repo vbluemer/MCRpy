@@ -37,26 +37,30 @@ def make_2d_gradients(loss_function: callable) -> callable:
     given a 2D microstructure. 
     """
     def gradient_computation(ms: Microstructure):
-        optimize_var = [ms.x]
+        is_zero     = tf.equal(ms.x, tf.constant(0, dtype=tf.float64))
+
+        not_zero    = tf.math.logical_not(is_zero)
+        indices_1     = tf.where(not_zero)
+
+        is_zero = tf.cast(is_zero, tf.float64)
+        not_zero = tf.cast(not_zero, tf.float64)
+
+        opt_var = ms.x[ms.x!=0]
         with tf.GradientTape(persistent=False) as tape:
-            loss = loss_function(ms.xx)
-            grads = tape.gradient(loss, optimize_var)
+            tape.watch(opt_var)
+            zeros        = tf.zeros_like(ms.x)
+            zeros = tf.tensor_scatter_nd_update(zeros, indices_1, opt_var)
+
+            loss = loss_function(zeros) + 1
+            grads = tape.gradient(loss, opt_var)
+
+            zerograds = tf.zeros_like(ms.x)
+            grads = tf.tensor_scatter_nd_update(zerograds, indices_1, grads)
+
+            grads = [grads]
+            
         return loss, grads
     return gradient_computation
-
-# def make_2d_gradients(loss_function: callable) -> callable:
-#     from jax import value_and_grad
-#     from jax.experimental.jax2tf import call_tf, convert
-#     def loss_function_typecast(input):
-#         return tf.cast(loss_function(tf.cast(input, tf.float64)), tf.float32)
-#     lf_jax = call_tf(loss_function_typecast)
-#     lg_jax = value_and_grad(lf_jax)
-#     lg_tf = convert(lg_jax)
-#     def inner(ms: Microstructure):
-#         ms_xx = tf.cast(ms.xx, tf.float32)
-#         val, grad = lg_tf(ms_xx)
-#         return tf.cast(val, tf.float64), tf.cast(grad, tf.float64)
-#     return inner
 
 def make_3d_gradients(
         loss_function: Union[callable, List[callable], Tuple[callable]], 
@@ -76,7 +80,12 @@ def make_3d_gradients(
     def repetitive_gradient_accumulation(ms: Microstructure):
         optimize_var = [ms.x]
         grads.assign(zero_grads)
-        total_loss = 0
+        total_loss = 1
+        
+        arr1 = ms.xx
+        where_zero = tf.equal(arr1, tf.constant(0, dtype=tf.float64))
+        indices = tf.where(where_zero)
+        B = tf.fill(np.shape(indices)[0], np.float64(0))
         for spatial_dim in range(3):
             use_loss = loss_function[spatial_dim] if anisotropic else loss_function
             for slice_index in range(ms.spatial_shape[spatial_dim]):
@@ -86,7 +95,11 @@ def make_3d_gradients(
                     inner_loss = use_loss(ms_slice)
                     partial_grads = tape.gradient(inner_loss, optimize_var)[0]
                 total_loss = total_loss + inner_loss
+
                 grads.assign_add(partial_grads)
+
+            grads.assign(tf.tensor_scatter_nd_update(grads, indices, B))
+
         return total_loss, [grads]
 
     return repetitive_gradient_accumulation

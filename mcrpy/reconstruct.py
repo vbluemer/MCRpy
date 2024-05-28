@@ -100,6 +100,7 @@ def save_convergence_data(convergence_data: Dict[str, Any], foldername: str, inf
     with open(convergence_data_filename, 'wb') as f:
         pickle.dump(convergence_data, f, protocol=4)
 
+
 def reconstruct(
         descriptor_dict: Dict[str, Union[np.ndarray, Tuple[np.ndarray]]],
         desired_shape: Tuple[int],

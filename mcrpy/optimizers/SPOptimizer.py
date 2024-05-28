@@ -34,12 +34,14 @@ class SPOptimizer(Optimizer):
     def __init__(self,
                  max_iter: int = 100,
                  desired_shape_extended: tuple = None,
-                 callback: callable = None):
+                 callback: callable = None,
+                 ftol: float = 0):
         """ABC init for scipy optimizer. Subclasses simply specify self.optimizer_method and self.bounds."""
         self.max_iter = max_iter
         self.desired_shape_extended = desired_shape_extended
         self.reconstruction_callback = callback
         self.current_loss = None
+        self.ftol = ftol
 
         assert self.reconstruction_callback is not None
         self.optimizer_method = None
@@ -61,10 +63,11 @@ class SPOptimizer(Optimizer):
         sp_options = {
             'maxiter': self.max_iter - self.n_iter,
             'maxfun': self.max_iter - self.n_iter,
+            'ftol': self.ftol
         }
         self.ms = ms
         self.opt_var = [self.ms.x]
         initial_solution = self.ms.x.numpy().astype(np.float64).flatten()
-        resdd = sopt.minimize(fun=self.step, x0=initial_solution, jac=True, tol=0,
+        resdd = sopt.minimize(fun=self.step, x0=initial_solution, jac=True, 
                               method=self.optimizer_method, bounds=self.bounds, options=sp_options)
         return self.n_iter

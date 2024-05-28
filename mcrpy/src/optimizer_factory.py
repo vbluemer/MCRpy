@@ -44,6 +44,7 @@ def create(optimizer_type: str,
         creator_func = optimizer_classes[optimizer_type]
     except KeyError:
         raise ValueError(f"Unknown optimizer type {optimizer_type!r}") from None
+
     args_copy = arguments.copy()
     return creator_func(**args_copy)
 

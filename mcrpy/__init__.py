@@ -26,7 +26,7 @@ from .src.Settings import CharacterizationSettings, ReconstructionSettings, Matc
 from .src.fileutils import load
 from .src.Microstructure import Microstructure
 
-
+print('Loading modified MCRpy installation')
 __version__ = "0.2.0"
 __author__ = 'Paul Seibert'
 __credits__ = 'Technische Universitaet Dresden'

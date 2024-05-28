@@ -28,13 +28,14 @@ from mcrpy.src import optimizer_factory
 
 class LBFGSB(SPOptimizer):
     def __init__(self,
+                 ftol: float = 0,
                  max_iter: int = 100,
                  callback: callable = None,
                  desired_shape_extended: tuple = None,
                  use_orientations: bool = False,
                  **kwargs):
 
-        super().__init__(max_iter=max_iter, callback=callback, desired_shape_extended=desired_shape_extended)
+        super().__init__(max_iter=max_iter, callback=callback, desired_shape_extended=desired_shape_extended,ftol=ftol)
         self.optimizer_method = 'L-BFGS-B'
         bounds_shape = (np.product(desired_shape_extended), 2)
         self.bounds = np.zeros(bounds_shape)
